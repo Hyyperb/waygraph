@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use std::os::fd::AsFd;
+use std::{collections::HashMap, os::fd::AsFd};
 
 use wayland_client::{
     Dispatch,
@@ -14,12 +14,18 @@ use wayland_client::{
 
 use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1};
 
+#[derive(Default)]
+struct Flags {
+    configured: bool,
+    drawbg: bool,
+    setexclusivezone: bool,
+}
+
 struct AppData {
     compositor: Option<WlCompositor>,
     layer_shell: Option<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
     shm: Option<wl_shm::WlShm>,
-
-    configured: bool,
+    flags: Flags,
 }
 
 impl Dispatch<wl_registry::WlRegistry, ()> for AppData {
@@ -112,7 +118,7 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for AppData {
     ) {
         if let zwlr_layer_surface_v1::Event::Configure { serial, .. } = event {
             layer_surface.ack_configure(serial);
-            state.configured = true;
+            state.flags.configured = true;
         }
     }
 }
@@ -167,8 +173,38 @@ fn main() {
         compositor: None,
         layer_shell: None,
         shm: None,
-        configured: false,
+        flags: Flags::default(),
     };
+
+    type FlagCallback = Box<dyn Fn(&mut AppData)>;
+    let mut flag_callbacks: HashMap<&str, FlagCallback> = HashMap::new();
+    flag_callbacks.insert(
+        "--draw-bg",
+        Box::new(|state: &mut AppData| {
+            state.flags.drawbg = true;
+        }),
+    );
+
+    flag_callbacks.insert(
+        "--set-exclusive-zone",
+        Box::new(|state: &mut AppData| {
+            state.flags.setexclusivezone = true;
+        }),
+    );
+
+    for arg in std::env::args().skip(1) {
+        match flag_callbacks.get(arg.as_str()) {
+            Some(callback) => callback(&mut state),
+            None => {
+                println!("Skipping unrecognised argument: {}", arg)
+            }
+        }
+
+        if let Some(callback) = flag_callbacks.get(arg.as_str()) {
+            callback(&mut state);
+        }
+        // TODO: replace with a arg parsing library.
+    }
 
     event_queue.roundtrip(&mut state).unwrap();
 
@@ -187,51 +223,59 @@ fn main() {
         (),
     );
 
-    layer_surface.set_size(400, 300);
-    surface.commit();
-
-    let file = std::fs::File::options()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open("/dev/shm/waygraph")
-        .unwrap();
-
-    let width = 400;
-    let height = 300;
-    let stride = width * 4;
-    let size = stride * width;
-
-    file.set_len(size).unwrap();
-
-    let mut data = unsafe { memmap2::MmapMut::map_mut(&file).unwrap() };
-
-    for chunk in data.chunks_exact_mut(4) {
-        chunk[0] = 0xFF;
-        chunk[1] = 0x00;
-        chunk[2] = 0x00;
-        chunk[3] = 0xFF;
+    layer_surface.set_size(1920, 1080);
+    layer_surface
+        .set_anchor(zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Left);
+    if state.flags.setexclusivezone {
+        layer_surface.set_exclusive_zone(-1);
     }
 
-    let pool = shm.create_pool(file.as_fd(), size as i32, &qh, ());
-
-    let buffer = pool.create_buffer(
-        0,
-        width as i32,
-        height,
-        stride as i32,
-        wl_shm::Format::Argb8888,
-        &qh,
-        (),
-    );
-
-    while !state.configured {
-        event_queue.blocking_dispatch(&mut state).unwrap();
-    }
-
-    surface.attach(Some(&buffer), 0, 0);
     surface.commit();
+
+    if state.flags.drawbg {
+        let file = std::fs::File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open("/dev/shm/waygraph")
+            .unwrap();
+
+        let width = 1920;
+        let height = 1080;
+        let stride = width * 4;
+        let size = stride * height;
+
+        file.set_len(size).unwrap();
+
+        let mut data = unsafe { memmap2::MmapMut::map_mut(&file).unwrap() };
+
+        for chunk in data.chunks_exact_mut(4) {
+            chunk[0] = 0xFF;
+            chunk[1] = 0x00;
+            chunk[2] = 0x00;
+            chunk[3] = 0xFF;
+        }
+
+        let pool = shm.create_pool(file.as_fd(), size as i32, &qh, ());
+
+        let buffer = pool.create_buffer(
+            0,
+            width as i32,
+            height as i32,
+            stride as i32,
+            wl_shm::Format::Argb8888,
+            &qh,
+            (),
+        );
+
+        while !state.flags.configured {
+            event_queue.blocking_dispatch(&mut state).unwrap();
+        }
+
+        surface.attach(Some(&buffer), 0, 0);
+        surface.commit();
+    }
 
     loop {
         event_queue.blocking_dispatch(&mut state).unwrap();
