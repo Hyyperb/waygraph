@@ -16,6 +16,8 @@ use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_l
 
 extern crate khronos_egl as egl;
 
+mod desktop;
+
 #[derive(Default)]
 struct Flags {
     configured: bool,
@@ -228,6 +230,7 @@ fn main() {
     layer_surface.set_size(1920, 1080);
     layer_surface
         .set_anchor(zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Left);
+
     if state.flags.setexclusivezone {
         layer_surface.set_exclusive_zone(-1);
     }
@@ -242,6 +245,7 @@ fn main() {
     let egl = egl::Instance::new(egl::Static);
     let egl_display = unsafe { egl.get_display(display.id().as_ptr() as *mut c_void) }.unwrap();
     egl.initialize(egl_display).unwrap();
+    egl.bind_api(egl::OPENGL_API).unwrap();
 
     let attributes = [
         egl::RED_SIZE,
@@ -249,6 +253,8 @@ fn main() {
         egl::GREEN_SIZE,
         8,
         egl::BLUE_SIZE,
+        8,
+        egl::ALPHA_SIZE,
         8,
         egl::NONE,
     ];
@@ -277,8 +283,6 @@ fn main() {
             .unwrap()
     };
 
-    egl.bind_api(egl::OPENGL_API).unwrap();
-
     egl.make_current(
         egl_display,
         Some(egl_surface),
@@ -295,13 +299,43 @@ fn main() {
     if state.flags.drawbg {
         unsafe {
             gl::Viewport(0, 0, width, height);
-            gl::ClearColor(0.3, 0.3, 1.0, 1.0);
+            gl::ClearColor(1.0, 1.0, 1.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
+    }
+
+    let desktop_entries = desktop::get_desktop_entries();
+    let desktop_entry_size = 196;
+
+    let row_count = height / desktop_entry_size;
+
+    loop {
+        let mut entry_count = 0;
+
+        unsafe {
+            gl::Viewport(0, 0, width, height);
+
+            gl::ClearColor(0.0, 0.0, 0.0, 0.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+
+            for entry in desktop_entries.iter() {
+                // let y = (entry_count * desktop_entry_size)
+                //     % ((height / desktop_entry_size) * desktop_entry_size);
+
+                let y = 900 - desktop_entry_size * (entry_count % row_count);
+                let x = desktop_entry_size * (entry_count / row_count);
+
+                entry_count += 1;
+
+                gl::Enable(gl::SCISSOR_TEST);
+                gl::Scissor(x, y, desktop_entry_size - 10, desktop_entry_size - 10);
+                gl::ClearColor(1.0, 1.0, 1.0, 1.0);
+                gl::Clear(gl::COLOR_BUFFER_BIT);
+                gl::Disable(gl::SCISSOR_TEST);
+            }
         }
         egl.swap_buffers(egl_display, egl_surface).unwrap();
     }
 
-    loop {
-        event_queue.blocking_dispatch(&mut state).unwrap();
-    }
+    // event_queue.blocking_dispatch(&mut state).unwrap();
 }
