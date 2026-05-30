@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+gl = "0.14.0"
+khronos-egl = { version = "6.0.0", features = ["dynamic", "libloading", "static"] }
 memmap2 = "0.9.10"
 wayland-client = "0.31.14"
+wayland-egl = "0.32.11"
 wayland-protocols-wlr = { version = "0.3.12", features = ["client"] }

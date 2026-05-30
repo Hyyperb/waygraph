@@ -1,10 +1,10 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use std::{collections::HashMap, os::fd::AsFd};
+use std::{collections::HashMap, ffi::c_void};
 
 use wayland_client::{
-    Dispatch,
+    Dispatch, Proxy,
     protocol::{
         wl_buffer,
         wl_compositor::{self, WlCompositor},
@@ -13,6 +13,8 @@ use wayland_client::{
 };
 
 use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1};
+
+extern crate khronos_egl as egl;
 
 #[derive(Default)]
 struct Flags {
@@ -231,50 +233,72 @@ fn main() {
     }
 
     surface.commit();
+    let width = 1920;
+    let height = 1080;
+
+    while !state.flags.configured {
+        event_queue.blocking_dispatch(&mut state).unwrap();
+    }
+    let egl = egl::Instance::new(egl::Static);
+    let egl_display = unsafe { egl.get_display(display.id().as_ptr() as *mut c_void) }.unwrap();
+    egl.initialize(egl_display).unwrap();
+
+    let attributes = [
+        egl::RED_SIZE,
+        8,
+        egl::GREEN_SIZE,
+        8,
+        egl::BLUE_SIZE,
+        8,
+        egl::NONE,
+    ];
+
+    let context_attributes = [
+        egl::CONTEXT_MAJOR_VERSION,
+        3,
+        egl::CONTEXT_MINOR_VERSION,
+        2,
+        egl::NONE,
+    ];
+
+    let config = egl
+        .choose_first_config(egl_display, &attributes)
+        .unwrap()
+        .unwrap();
+
+    let context = egl
+        .create_context(egl_display, config, None, &context_attributes)
+        .unwrap();
+
+    let egl_window = wayland_egl::WlEglSurface::new(surface.id(), width, height).unwrap();
+
+    let egl_surface = unsafe {
+        egl.create_window_surface(egl_display, config, egl_window.ptr() as *mut _, None)
+            .unwrap()
+    };
+
+    egl.bind_api(egl::OPENGL_API).unwrap();
+
+    egl.make_current(
+        egl_display,
+        Some(egl_surface),
+        Some(egl_surface),
+        Some(context),
+    )
+    .unwrap();
+
+    gl::load_with(|name| {
+        let c = std::ffi::CString::new(name).unwrap();
+        egl.get_proc_address(name).unwrap() as *const c_void
+    });
 
     if state.flags.drawbg {
-        let file = std::fs::File::options()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open("/dev/shm/waygraph")
-            .unwrap();
-
-        let width = 1920;
-        let height = 1080;
-        let stride = width * 4;
-        let size = stride * height;
-
-        file.set_len(size).unwrap();
-
-        let mut data = unsafe { memmap2::MmapMut::map_mut(&file).unwrap() };
-
-        for chunk in data.chunks_exact_mut(4) {
-            chunk[0] = 0xFF;
-            chunk[1] = 0x00;
-            chunk[2] = 0x00;
-            chunk[3] = 0xFF;
+        unsafe {
+            gl::Viewport(0, 0, width, height);
+            gl::ClearColor(0.3, 0.3, 1.0, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
         }
-
-        let pool = shm.create_pool(file.as_fd(), size as i32, &qh, ());
-
-        let buffer = pool.create_buffer(
-            0,
-            width as i32,
-            height as i32,
-            stride as i32,
-            wl_shm::Format::Argb8888,
-            &qh,
-            (),
-        );
-
-        while !state.flags.configured {
-            event_queue.blocking_dispatch(&mut state).unwrap();
-        }
-
-        surface.attach(Some(&buffer), 0, 0);
-        surface.commit();
+        egl.swap_buffers(egl_display, egl_surface).unwrap();
     }
 
     loop {
