@@ -17,6 +17,7 @@ use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_l
 extern crate khronos_egl as egl;
 
 mod desktop;
+mod fonts;
 
 #[derive(Default)]
 struct Flags {
@@ -327,11 +328,7 @@ fn main() {
 
                 entry_count += 1;
 
-                gl::Enable(gl::SCISSOR_TEST);
-                gl::Scissor(x, y, desktop_entry_size - 10, desktop_entry_size - 10);
-                gl::ClearColor(1.0, 1.0, 1.0, 1.0);
-                gl::Clear(gl::COLOR_BUFFER_BIT);
-                gl::Disable(gl::SCISSOR_TEST);
+                entry.draw_area_rect(x, y, desktop_entry_size);
             }
         }
         egl.swap_buffers(egl_display, egl_surface).unwrap();
