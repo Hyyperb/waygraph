@@ -1,9 +1,34 @@
 use std::io::{BufRead, BufReader};
 
+extern crate gl;
+
+const ICON_PADDING_TOP: i32 = 20;
+const ICON_PADDING_LEFT: i32 = 40;
+const ICON_PADDING_RIGHT: i32 = 40;
+const ICON_PADDING_BOTTOM: i32 = 35;
+
 #[derive(Debug)]
 pub struct DesktopEntry {
     label: String,
     icon_path: String,
+}
+
+impl DesktopEntry {
+    pub fn draw_area_rect(&self, x: i32, y: i32, size: i32) {
+        unsafe {
+            gl::Enable(gl::SCISSOR_TEST);
+            gl::Scissor(
+                x + ICON_PADDING_LEFT,
+                y + ICON_PADDING_BOTTOM,
+                size - ICON_PADDING_RIGHT - ICON_PADDING_LEFT,
+                size - ICON_PADDING_TOP - ICON_PADDING_BOTTOM,
+            );
+
+            gl::ClearColor(1.0, 1.0, 1.0, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+            gl::Disable(gl::SCISSOR_TEST);
+        }
+    }
 }
 
 pub fn get_desktop_entries() -> Vec<DesktopEntry> {
