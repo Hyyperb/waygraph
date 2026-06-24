@@ -14,6 +14,8 @@ use wayland_client::{
 
 use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1};
 
+use crate::fonts::FontRenderer;
+
 extern crate khronos_egl as egl;
 
 mod desktop;
@@ -291,7 +293,6 @@ fn main() {
         Some(context),
     )
     .unwrap();
-
     gl::load_with(|name| {
         let c = std::ffi::CString::new(name).unwrap();
         egl.get_proc_address(name).unwrap() as *const c_void
@@ -310,6 +311,8 @@ fn main() {
 
     let row_count = height / desktop_entry_size;
 
+    let font_renderer = FontRenderer::new("NotoSans-Regular".to_string(), 48);
+
     loop {
         let mut entry_count = 0;
 
@@ -318,6 +321,8 @@ fn main() {
 
             gl::ClearColor(0.0, 0.0, 0.0, 0.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
+
+            font_renderer.render_text("E".to_string(), 0.0, 0.0);
 
             for entry in desktop_entries.iter() {
                 // let y = (entry_count * desktop_entry_size)
