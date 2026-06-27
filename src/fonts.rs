@@ -1,16 +1,13 @@
-
 use std::{collections::HashMap, path::PathBuf, ptr::null};
 
 use freetype::face::LoadFlag;
 
 pub struct GlyphRenderCache {
     texture: u32,
-    shader_program: u32,
-    vao: u32,
     height: f32,
     width: f32,
-    y: f32,
-    x: f32,
+    bearing_x: f32,
+    bearing_y: f32,
 }
 
 pub struct FontRenderer {
@@ -20,43 +17,9 @@ pub struct FontRenderer {
     library: freetype::Library,
     face: freetype::Face,
     glyphs: HashMap<char, GlyphRenderCache>,
+    shader_program: u32,
+    vao: u32,
 }
-
-impl GlyphRenderCache {
-    pub fn get_quad_vertices(&self, viewport_width: f32, viewport_height: f32) -> [f32; (3+2) * 3 * 2] {
-        [
-            -0.5, 0.5, 0.0, 0.0, 1.0,
-            -0.5, -0.5, 0.0, 0.0, 0.0,
-            0.5, -0.5, 0.0, 1.0, 0.0,
-            0.5, -0.5, 0.0, 1.0, 0.0,
-            0.5, 0.5, 0.0, 1.0, 1.0,
-            -0.5, 0.5, 0.0, 0.0, 1.0,
-        ]
-
-        // [
-        //     self.x,
-        //     self.y,
-        //     0.0,
-        //     self.x,
-        //     self.y + self.height,
-        //     0.0,
-        //     self.x + self.width,
-        //     self.y + self.height,
-        //     0.0,
-        //     self.x,
-        //     self.y + self.height,
-        //     0.0,
-        //     self.x + self.width,
-        //     self.y + self.height,
-        //     0.0,
-        //     self.x + self.width,
-        //     self.y,
-        //     0.0,
-        // ]
-        // TODO: replace the dummy quad coords with actual calculation
-    }
-}
-
 pub fn get_system_fonts(path: Option<String>) -> Vec<PathBuf> {
     let fonts_dir = std::fs::read_dir(path.unwrap_or("/usr/share/fonts/".to_string())).unwrap();
 
@@ -99,25 +62,42 @@ impl FontRenderer {
 
         let shader_program = create_shader_program();
 
+        let vertices: [f32; _] = [0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
+        let mut vao: u32 = 0;
+        let mut vbo: u32 = 0;
+
         unsafe {
+            gl::GenVertexArrays(1, &mut vao);
+            gl::BindVertexArray(vao);
+
+            gl::GenBuffers(1, &mut vbo);
+            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                std::mem::size_of_val(&vertices) as isize,
+                vertices.as_ptr().cast(),
+                gl::STATIC_DRAW,
+            );
+            gl::VertexAttribPointer(
+                0,
+                2,
+                gl::FLOAT,
+                gl::FALSE,
+                (2 * std::mem::size_of::<f32>()) as i32,
+                std::ptr::null(),
+            );
+            gl::EnableVertexAttribArray(0);
+
             gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
         }
 
         for charcode in 32..128 {
             face.load_char(charcode, LoadFlag::RENDER).unwrap();
             let glyph = face.glyph();
-
-            let mut texture = 0;
-            let mut vao: u32 = 0;
-
-            unsafe {
-                gl::GenVertexArrays(1, &mut vao);
-                gl::BindVertexArray(vao);
-
-            }
-
             let bitmap = glyph.bitmap();
+            let advance = glyph.advance();
 
+            let mut texture: u32 = 0;
             unsafe {
                 gl::GenTextures(1, &mut texture);
                 gl::BindTexture(gl::TEXTURE_2D, texture);
@@ -125,48 +105,11 @@ impl FontRenderer {
 
             let glyphcache = GlyphRenderCache {
                 texture,
-                shader_program,
-                vao,
                 width: bitmap.width() as f32,
                 height: bitmap.rows() as f32,
-                x: glyph.bitmap_left() as f32,
-                y: glyph.bitmap_top() as f32,
+                bearing_x: glyph.bitmap_left() as f32,
+                bearing_y: glyph.bitmap_top() as f32,
             };
-
-            let vertices = glyphcache.get_quad_vertices(1920.0, 1080.0);
-            let mut vbo: u32 = 0;
-
-            unsafe {
-                gl::GenBuffers(1, &mut vbo);
-                gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-                gl::BufferData(
-                    gl::ARRAY_BUFFER,
-                    std::mem::size_of_val(&vertices) as isize,
-                    vertices.as_ptr().cast(),
-                    gl::STATIC_DRAW
-                );
-                gl::VertexAttribPointer(
-                    0,
-                    3,
-                    gl::FLOAT,
-                    gl::FALSE,
-                    (5 * std::mem::size_of::<f32>()) as i32,
-                    std::ptr::null()
-                );
-                gl::EnableVertexAttribArray(0);
-
-                gl::VertexAttribPointer(
-                    1,
-                    2,
-                    gl::FLOAT,
-                    gl::FALSE,
-                    (5 * std::mem::size_of::<f32>()) as i32,
-                    (3 * std::mem::size_of::<f32>()) as *const _,
-                );
-                gl::EnableVertexAttribArray(1);
-                println!("{} x {}", glyphcache.width, glyphcache.height);
-
-            }
 
             unsafe {
                 gl::TexImage2D(
@@ -181,13 +124,10 @@ impl FontRenderer {
                     bitmap.buffer().as_ptr().cast(),
                 );
 
-
                 gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
                 gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
                 gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
                 gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
-
-
             }
 
             glyphs.insert(char::from_u32(charcode as u32).unwrap(), glyphcache);
@@ -201,6 +141,8 @@ impl FontRenderer {
             library,
             face,
             glyphs,
+            shader_program,
+            vao,
         }
     }
 
@@ -210,14 +152,7 @@ impl FontRenderer {
             unsafe {
                 gl::ActiveTexture(gl::TEXTURE0);
                 gl::BindTexture(gl::TEXTURE_2D, g.texture);
-                gl::UseProgram(g.shader_program);
-
-                gl::Uniform1i(
-                    gl::GetUniformLocation(g.shader_program, c"glyphTexture".as_ptr()),
-                    0,
-                );
-
-                gl::BindVertexArray(g.vao);
+                gl::UseProgram(self.shader_program);
                 gl::DrawArrays(gl::TRIANGLES, 0, 6);
             }
         }
@@ -230,14 +165,13 @@ fn create_shader_program() -> u32 {
 
         const VERT_SHADER: &str = r#"
             #version 330 core
-            layout (location = 0) in vec3 pos;
-            layout (location = 1) in vec2 texCoord;
 
+            in vec2 charPos;
             out vec2 TexCoord;
 
             void main(){
-                gl_Position = vec4(pos.x, pos.y, pos.z, 1.0);
-                TexCoord = texCoord;
+                gl_Position = vec4(charPos.x - 0.5, - (charPos.y - 0.5), 0.0, 1.0);
+                TexCoord = vec2(charPos.xy);
             }
             "#;
 
