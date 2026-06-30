@@ -311,7 +311,7 @@ fn main() {
 
     let row_count = height / desktop_entry_size;
 
-    let font_renderer = FontRenderer::new("NotoSans-Regular".to_string(), 48);
+    let font_renderer = FontRenderer::new("NotoSans-Regular".to_string(), 148);
 
     loop {
         let mut entry_count = 0;
@@ -322,7 +322,9 @@ fn main() {
             gl::ClearColor(0.0, 0.0, 0.0, 0.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
-            font_renderer.render_text("E".to_string(), 0.0, 0.0);
+            font_renderer.render_text("Lorem Ipsum".to_string(), 300.0, 200.0);
+            font_renderer.render_text("Dolor Sit Amet!".to_string(), 500.0, 600.0);
+            font_renderer.render_text("Consecutor Adispicing".to_string(), 200.0, 900.0);
 
             for entry in desktop_entries.iter() {
                 // let y = (entry_count * desktop_entry_size)
@@ -333,7 +335,7 @@ fn main() {
 
                 entry_count += 1;
 
-                entry.draw_area_rect(x, y, desktop_entry_size);
+                // entry.draw_area_rect(x, y, desktop_entry_size);
             }
         }
         egl.swap_buffers(egl_display, egl_surface).unwrap();

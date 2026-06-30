@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, ptr::null};
 
-use freetype::face::LoadFlag;
+use freetype::{face::LoadFlag, ffi::FT_Vector};
 
 pub struct GlyphRenderCache {
     texture: u32,
@@ -8,6 +8,7 @@ pub struct GlyphRenderCache {
     width: f32,
     bearing_x: f32,
     bearing_y: f32,
+    advance: FT_Vector,
 }
 
 pub struct FontRenderer {
@@ -109,6 +110,7 @@ impl FontRenderer {
                 height: bitmap.rows() as f32,
                 bearing_x: glyph.bitmap_left() as f32,
                 bearing_y: glyph.bitmap_top() as f32,
+                advance,
             };
 
             unsafe {
@@ -118,7 +120,7 @@ impl FontRenderer {
                     gl::R8 as i32,
                     glyphcache.width as i32,
                     glyphcache.height as i32,
-                    0,
+                    1,
                     gl::RED,
                     gl::UNSIGNED_BYTE,
                     bitmap.buffer().as_ptr().cast(),
@@ -146,15 +148,43 @@ impl FontRenderer {
         }
     }
 
-    pub fn render_text(&self, text: String, x: f64, y: f64) {
+    pub fn render_text(&self, text: String, x: f32, y: f32) {
+        let mut x = x;
         for ch in text.chars() {
             let g = self.glyphs.get(&ch).unwrap();
             unsafe {
                 gl::ActiveTexture(gl::TEXTURE0);
                 gl::BindTexture(gl::TEXTURE_2D, g.texture);
                 gl::UseProgram(self.shader_program);
+
+                gl::Uniform2f(
+                    gl::GetUniformLocation(self.shader_program, c"charPos".as_ptr()),
+                    x,
+                    y,
+                );
+
+                gl::Uniform2f(
+                    gl::GetUniformLocation(self.shader_program, c"glyphPos".as_ptr()),
+                    g.bearing_x,
+                    g.bearing_y,
+                );
+
+                gl::Uniform2f(
+                    gl::GetUniformLocation(self.shader_program, c"glyphSize".as_ptr()),
+                    g.width,
+                    g.height,
+                );
+
+                gl::Uniform2f(
+                    gl::GetUniformLocation(self.shader_program, c"viewportSize".as_ptr()),
+                    1920.0,
+                    1080.0,
+                );
+
                 gl::DrawArrays(gl::TRIANGLES, 0, 6);
             }
+            println!("{:?}", g.advance);
+            x += g.advance.x as f32 / 65.0;
         }
     }
 }
@@ -166,12 +196,22 @@ fn create_shader_program() -> u32 {
         const VERT_SHADER: &str = r#"
             #version 330 core
 
-            in vec2 charPos;
+            in vec2 aPos;
+            uniform vec2 charPos;
+            uniform vec2 glyphPos;
+            uniform vec2 glyphSize;
+            uniform vec2 viewportSize;
             out vec2 TexCoord;
 
+            vec2 translate(vec2 aPos, vec2 pos, vec2 dim, vec2 offset){
+                return ((aPos.xy * dim + pos  - vec2(1 - offset.x, offset.y)) / viewportSize.xy) * vec2(2,-2) + vec2(-1, 1);
+            }
+            
             void main(){
-                gl_Position = vec4(charPos.x - 0.5, - (charPos.y - 0.5), 0.0, 1.0);
-                TexCoord = vec2(charPos.xy);
+                vec2 offset = vec2(-1.5, 0.5);
+                vec2 transform = vec2(2, -2);
+                gl_Position = vec4(translate(aPos.xy, charPos, glyphSize, glyphPos).xy , 0.0, 1.0);
+                TexCoord = vec2(aPos.xy);
             }
             "#;
 
