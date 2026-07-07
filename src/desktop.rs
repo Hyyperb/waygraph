@@ -40,8 +40,7 @@ pub fn get_desktop_entries() -> Vec<DesktopEntry> {
 
     for file in desktop_files.map(std::result::Result::unwrap) {
         let file_path = file.path();
-        if file_path.is_file() {
-            println!("inside {:?}", file_path);
+        if file_path.is_file() && file_path.extension().unwrap() == "desktop" {
             let f = std::fs::File::open(file_path).unwrap();
             let buf = BufReader::new(f);
 
@@ -50,7 +49,7 @@ pub fn get_desktop_entries() -> Vec<DesktopEntry> {
                 if line.starts_with("Icon=") {
                     let entry = DesktopEntry {
                         label: file.file_name().into_string().unwrap(),
-                        icon_path: line[5..].to_string(),
+                        icon_path: line.strip_prefix("Icon=").unwrap().to_string(),
                     };
                     entries.push(entry);
                 }
@@ -58,6 +57,5 @@ pub fn get_desktop_entries() -> Vec<DesktopEntry> {
         }
     }
 
-    println!("{:?}", entries);
     entries
 }

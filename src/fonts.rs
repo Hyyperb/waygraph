@@ -63,7 +63,17 @@ impl FontRenderer {
 
         let shader_program = create_shader_program();
 
-        let vertices: [f32; _] = [0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
+        #[rustfmt::skip]
+        let vertices: [f32; _] = [
+            0.0, 1.0,
+            0.0, 0.0,
+            1.0, 0.0,
+
+            1.0, 0.0,
+            1.0, 1.0,
+            0.0, 1.0
+        ];
+
         let mut vao: u32 = 0;
         let mut vbo: u32 = 0;
 
@@ -120,7 +130,7 @@ impl FontRenderer {
                     gl::R8 as i32,
                     glyphcache.width as i32,
                     glyphcache.height as i32,
-                    1,
+                    0,
                     gl::RED,
                     gl::UNSIGNED_BYTE,
                     bitmap.buffer().as_ptr().cast(),
@@ -183,7 +193,6 @@ impl FontRenderer {
 
                 gl::DrawArrays(gl::TRIANGLES, 0, 6);
             }
-            println!("{:?}", g.advance);
             x += g.advance.x as f32 / 65.0;
         }
     }

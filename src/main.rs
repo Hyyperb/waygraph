@@ -24,7 +24,7 @@ mod fonts;
 #[derive(Default)]
 struct Flags {
     configured: bool,
-    drawbg: bool,
+    drawshadow: bool,
     setexclusivezone: bool,
 }
 
@@ -186,9 +186,9 @@ fn main() {
     type FlagCallback = Box<dyn Fn(&mut AppData)>;
     let mut flag_callbacks: HashMap<&str, FlagCallback> = HashMap::new();
     flag_callbacks.insert(
-        "--draw-bg",
+        "--draw-shadow",
         Box::new(|state: &mut AppData| {
-            state.flags.drawbg = true;
+            state.flags.drawshadow = true;
         }),
     );
 
@@ -250,23 +250,19 @@ fn main() {
     egl.initialize(egl_display).unwrap();
     egl.bind_api(egl::OPENGL_API).unwrap();
 
+    #[rustfmt::skip]
     let attributes = [
-        egl::RED_SIZE,
-        8,
-        egl::GREEN_SIZE,
-        8,
-        egl::BLUE_SIZE,
-        8,
-        egl::ALPHA_SIZE,
-        8,
+        egl::RED_SIZE, 8,
+        egl::GREEN_SIZE, 8,
+        egl::BLUE_SIZE, 8,
+        egl::ALPHA_SIZE, 8,
         egl::NONE,
     ];
 
+    #[rustfmt::skip]
     let context_attributes = [
-        egl::CONTEXT_MAJOR_VERSION,
-        3,
-        egl::CONTEXT_MINOR_VERSION,
-        2,
+        egl::CONTEXT_MAJOR_VERSION, 3,
+        egl::CONTEXT_MINOR_VERSION, 2,
         egl::NONE,
     ];
 
@@ -298,14 +294,6 @@ fn main() {
         egl.get_proc_address(name).unwrap() as *const c_void
     });
 
-    if state.flags.drawbg {
-        unsafe {
-            gl::Viewport(0, 0, width, height);
-            gl::ClearColor(1.0, 1.0, 1.0, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-        }
-    }
-
     let desktop_entries = desktop::get_desktop_entries();
     let desktop_entry_size = 196;
 
@@ -314,29 +302,19 @@ fn main() {
     let font_renderer = FontRenderer::new("NotoSans-Regular".to_string(), 148);
 
     loop {
-        let mut entry_count = 0;
-
         unsafe {
             gl::Viewport(0, 0, width, height);
 
-            gl::ClearColor(0.0, 0.0, 0.0, 0.0);
+            if state.flags.drawshadow {
+                gl::ClearColor(0.0, 0.0, 0.0, 0.7);
+            } else {
+                gl::ClearColor(0.0, 0.0, 0.0, 0.0);
+            }
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
             font_renderer.render_text("Lorem Ipsum".to_string(), 300.0, 200.0);
             font_renderer.render_text("Dolor Sit Amet!".to_string(), 500.0, 600.0);
             font_renderer.render_text("Consecutor Adispicing".to_string(), 200.0, 900.0);
-
-            for entry in desktop_entries.iter() {
-                // let y = (entry_count * desktop_entry_size)
-                //     % ((height / desktop_entry_size) * desktop_entry_size);
-
-                let y = 900 - desktop_entry_size * (entry_count % row_count);
-                let x = desktop_entry_size * (entry_count / row_count);
-
-                entry_count += 1;
-
-                // entry.draw_area_rect(x, y, desktop_entry_size);
-            }
         }
         egl.swap_buffers(egl_display, egl_surface).unwrap();
     }
