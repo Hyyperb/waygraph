@@ -12,7 +12,7 @@ pub trait Layout: Rendering {
     fn arrange_items(&self, state: &mut Vec<DesktopItem>) {}
     fn get_index_of_item_under_position(
         &self,
-        desktop_items: &Vec<DesktopItem>,
+        desktop_items: &[DesktopItem],
         x: f32,
         y: f32,
     ) -> Option<usize> {

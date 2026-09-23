@@ -5,19 +5,19 @@ use crate::layout::Layout;
 use crate::renderer::Rendering;
 
 pub struct SimpleGridLayout {
-    desktop_item_size: i32,
+    desktop_item_size: f32,
     font_renderer: FontRenderer,
-    width: i32,
-    height: i32,
+    width: f32,
+    height: f32,
 }
 
 impl SimpleGridLayout {
     pub fn new(
-        width: i32,
-        height: i32,
+        width: f32,
+        height: f32,
         font_name: &'static str,
         font_size: u8,
-        desktop_item_size: i32,
+        desktop_item_size: f32,
     ) -> SimpleGridLayout {
         let font_renderer = FontRenderer::new(font_name, font_size);
         SimpleGridLayout {
@@ -30,8 +30,7 @@ impl SimpleGridLayout {
 }
 
 impl SimpleGridLayout {
-    fn resolve_position(&self, grid_x: i32, grid_y: i32) -> (i32, i32) {
-        let row_count = self.height / self.desktop_item_size;
+    fn resolve_position(&self, grid_x: f32, grid_y: f32) -> (f32, f32) {
         let y = self.desktop_item_size * grid_x;
         let x = self.desktop_item_size * grid_y;
         (x, y)
@@ -39,8 +38,8 @@ impl SimpleGridLayout {
 
     fn snap(&self, x: f32, y: f32) -> (i32, i32) {
         (
-            x as i32 / self.desktop_item_size,
-            y as i32 / self.desktop_item_size,
+            (x / self.desktop_item_size) as i32,
+            (y / self.desktop_item_size) as i32,
         )
     }
 }
@@ -49,22 +48,23 @@ impl Layout for SimpleGridLayout {
     fn arrange_items(&self, desktop_items: &mut Vec<DesktopItem>) {
         let row_count = self.height / self.desktop_item_size;
 
-        for i in 0..desktop_items.len() {
-            let (x, y) = self.resolve_position(i as i32 % row_count, i as i32 / row_count);
-            desktop_items[i].x = x;
-            desktop_items[i].y = y;
-            desktop_items[i].size = self.desktop_item_size;
+        for (i, desktop_item) in desktop_items.iter_mut().enumerate() {
+            let (x, y) =
+                self.resolve_position(i as f32 % row_count, (i as f32 / row_count).floor());
+            desktop_item.pos.x = x;
+            desktop_item.pos.y = y;
+            desktop_item.size = self.desktop_item_size;
         }
     }
 
     fn get_index_of_item_under_position(
         &self,
-        desktop_items: &Vec<DesktopItem>,
+        desktop_items: &[DesktopItem],
         x: f32,
         y: f32,
     ) -> Option<usize> {
         let (ix, iy) = self.snap(x, y);
-        let row_count = self.height / self.desktop_item_size;
+        let row_count = (self.height / self.desktop_item_size) as i32;
 
         let i = ix * row_count + iy;
 
@@ -76,11 +76,15 @@ impl Rendering for SimpleGridLayout {
     fn render(&self, state: &AppData) {
         for desktop_item in state.app.desktop.items.iter() {
             desktop_item.render(state);
-            let text_x = (desktop_item.x + self.desktop_item_size / 2) as f32;
-            let text_y = (desktop_item.y + desktop_item.size - 10) as f32;
+            let text_x = desktop_item.pos.x + self.desktop_item_size / 2.0;
+            let text_y = desktop_item.pos.y + desktop_item.size - 10.0;
 
-            self.font_renderer
-                .render_text(&state, &desktop_item.label, text_x, text_y);
+            self.font_renderer.render_text(
+                state,
+                desktop_item.data.name.as_ref().unwrap().as_str(),
+                text_x,
+                text_y,
+            );
         }
     }
 }

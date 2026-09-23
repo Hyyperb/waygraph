@@ -32,7 +32,7 @@ pub fn handle_double_click(state: &mut AppData, button: u32, click_time: u32) {
         last_y as f32,
     ) {
         let item = state.app.desktop.items.get(item_index).unwrap();
-        let exec = item.exec.as_ref().unwrap();
+        let exec = item.data.exec.as_ref().unwrap();
         let (command, args) = exec.split_once(" ").unwrap_or((exec, ""));
         println!("Launching {}...", exec);
 

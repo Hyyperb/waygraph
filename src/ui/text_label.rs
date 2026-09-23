@@ -9,6 +9,6 @@ pub struct TextLabel {
 
 impl Rendering for TextLabel {
     fn render(&self, state: &AppData) {
-        self.renderer.render_text(&state, self.text, self.x, self.y);
+        self.renderer.render_text(state, self.text, self.x, self.y);
     }
 }

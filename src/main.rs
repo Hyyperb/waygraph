@@ -414,11 +414,11 @@ fn main() {
     let font_renderer = FontRenderer::new(font_name, 80);
 
     let layoutgrid = layout::simplegridlayout::SimpleGridLayout::new(
-        state.app.desktop.width as i32,
-        state.app.desktop.height as i32,
+        state.app.desktop.width as f32,
+        state.app.desktop.height as f32,
         font_name,
         18,
-        180,
+        180.0,
     );
     state.app.desktop.layout = Box::new(layoutgrid);
 
