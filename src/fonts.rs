@@ -1,6 +1,10 @@
 use std::{collections::HashMap, path::PathBuf, ptr::null};
 
-use freetype::{face::LoadFlag, ffi::FT_Vector};
+use freetype::ffi::FT_Vector;
+
+use freetype::face::LoadFlag;
+
+use crate::AppData;
 
 pub struct GlyphRenderCache {
     texture: u32,
@@ -12,7 +16,7 @@ pub struct GlyphRenderCache {
 }
 
 pub struct FontRenderer {
-    font_name: String,
+    font_name: &'static str,
     font_size: u8,
     font_path: String,
     library: freetype::Library,
@@ -21,26 +25,7 @@ pub struct FontRenderer {
     shader_program: u32,
     vao: u32,
 }
-pub fn get_system_fonts(path: Option<String>) -> Vec<PathBuf> {
-    let fonts_dir = std::fs::read_dir(path.unwrap_or("/usr/share/fonts/".to_string())).unwrap();
-
-    let mut fonts: Vec<PathBuf> = vec![];
-
-    for file in fonts_dir {
-        let file = file.unwrap();
-        if file.path().is_dir() {
-            fonts.extend(get_system_fonts(
-                file.path().to_str().map(|s| s.to_string()),
-            ));
-        } else {
-            fonts.push(file.path());
-        }
-    }
-
-    fonts
-}
-
-pub fn find_font_path(query: &String) -> Option<PathBuf> {
+pub fn find_font_path(query: &str) -> Option<PathBuf> {
     let fonts = get_system_fonts(None);
     fonts.into_iter().find(|f| {
         f.ends_with(query)
@@ -51,8 +36,8 @@ pub fn find_font_path(query: &String) -> Option<PathBuf> {
 }
 
 impl FontRenderer {
-    pub fn new(font_name: String, font_size: u8) -> FontRenderer {
-        let font_path = find_font_path(&font_name).unwrap().display().to_string();
+    pub fn new(font_name: &'static str, font_size: u8) -> FontRenderer {
+        let font_path = find_font_path(font_name).unwrap().display().to_string();
 
         let library = freetype::library::Library::init().unwrap();
         let face = library.new_face(&font_path, 0).unwrap();
@@ -157,9 +142,16 @@ impl FontRenderer {
             vao,
         }
     }
+    pub fn estimate_text_width(&self, text: &str) -> f32 {
+        let mut width_count: f32 = 0.0;
+        for ch in text.as_bytes() {
+            width_count += self.glyphs[&(*ch as char)].advance.x as f32;
+        }
+        width_count / 64.0
+    }
 
-    pub fn render_text(&self, text: String, x: f32, y: f32) {
-        let mut x = x;
+    pub fn render_text(&self, state: &AppData, text: &str, x: f32, y: f32) {
+        let mut x = x - self.estimate_text_width(text) / 2.0;
         for ch in text.chars() {
             let g = self.glyphs.get(&ch).unwrap();
             unsafe {
@@ -187,8 +179,8 @@ impl FontRenderer {
 
                 gl::Uniform2f(
                     gl::GetUniformLocation(self.shader_program, c"viewportSize".as_ptr()),
-                    1920.0,
-                    1080.0,
+                    state.app.desktop.width as f32,
+                    state.app.desktop.height as f32,
                 );
 
                 gl::DrawArrays(gl::TRIANGLES, 0, 6);
@@ -198,7 +190,7 @@ impl FontRenderer {
     }
 }
 
-fn create_shader_program() -> u32 {
+pub fn create_shader_program() -> u32 {
     unsafe {
         let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
 
@@ -253,6 +245,8 @@ fn create_shader_program() -> u32 {
                 float alpha = texture(glyphTexture, TexCoord).r;
                 final_color = vec4(1.0, 1.0, 1.0, alpha);
             }
+
+
             "#;
 
         let raw_source = std::ffi::CString::new(FRAG_SHADER).unwrap();
@@ -295,4 +289,23 @@ impl std::fmt::Debug for FontRenderer {
             .field("glyphs cached", &self.glyphs.len())
             .finish()
     }
+}
+
+pub fn get_system_fonts(path: Option<String>) -> Vec<PathBuf> {
+    let fonts_dir = std::fs::read_dir(path.unwrap_or("/usr/share/fonts/".to_string())).unwrap();
+
+    let mut fonts: Vec<PathBuf> = vec![];
+
+    for file in fonts_dir {
+        let file = file.unwrap();
+        if file.path().is_dir() {
+            fonts.extend(get_system_fonts(
+                file.path().to_str().map(|s| s.to_string()),
+            ));
+        } else {
+            fonts.push(file.path());
+        }
+    }
+
+    fonts
 }

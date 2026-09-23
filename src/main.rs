@@ -8,18 +8,24 @@ use wayland_client::{
     protocol::{
         wl_buffer,
         wl_compositor::{self, WlCompositor},
-        wl_display, wl_registry, wl_shm, wl_shm_pool, wl_surface,
+        wl_display, wl_pointer, wl_registry, wl_seat, wl_shm, wl_shm_pool, wl_surface,
     },
 };
 
 use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1};
 
-use crate::fonts::FontRenderer;
+use fonts::FontRenderer;
+
+use crate::{desktop::DesktopItem, layout::DummyLayout};
 
 extern crate khronos_egl as egl;
 
 mod desktop;
 mod fonts;
+mod input;
+mod layout;
+mod renderer;
+mod ui;
 
 #[derive(Default)]
 struct Flags {
@@ -28,11 +34,59 @@ struct Flags {
     setexclusivezone: bool,
 }
 
+#[derive(Default)]
+struct PointerData {
+    last_x: f64,
+    last_y: f64,
+    last_time: u32,
+}
+
+struct WaygraphConfig {
+    double_click_timeout: u32,
+}
+
+impl Default for WaygraphConfig {
+    fn default() -> Self {
+        WaygraphConfig {
+            double_click_timeout: 200,
+        }
+    }
+}
+
+struct DesktopLayout {
+    items: Vec<DesktopItem>,
+    layout: Box<dyn layout::Layout>,
+    width: u32,
+    height: u32,
+}
+
+impl Default for DesktopLayout {
+    fn default() -> Self {
+        let items = desktop::get_desktop_entries();
+        let layout = Box::new(DummyLayout {});
+        Self {
+            items,
+            layout,
+            width: 1920,
+            height: 1080,
+        }
+    }
+}
+
+#[derive(Default)]
+struct WayGraph {
+    flags: Flags,
+    config: WaygraphConfig,
+    pointer: PointerData,
+    desktop: DesktopLayout,
+}
+
 struct AppData {
     compositor: Option<WlCompositor>,
     layer_shell: Option<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
     shm: Option<wl_shm::WlShm>,
-    flags: Flags,
+    seat: Option<wl_seat::WlSeat>,
+    app: WayGraph,
 }
 
 impl Dispatch<wl_registry::WlRegistry, ()> for AppData {
@@ -59,6 +113,9 @@ impl Dispatch<wl_registry::WlRegistry, ()> for AppData {
                 }
                 "wl_shm" => {
                     state.shm = Some(registry.bind(name, 1, qhandle, ()));
+                }
+                "wl_seat" => {
+                    state.seat = Some(registry.bind(name, 1, qhandle, ()));
                 }
                 _ => {}
             }
@@ -125,7 +182,7 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for AppData {
     ) {
         if let zwlr_layer_surface_v1::Event::Configure { serial, .. } = event {
             layer_surface.ack_configure(serial);
-            state.flags.configured = true;
+            state.app.flags.configured = true;
         }
     }
 }
@@ -139,6 +196,47 @@ impl Dispatch<wl_shm::WlShm, ()> for AppData {
         conn: &wayland_client::Connection,
         qhandle: &wayland_client::QueueHandle<Self>,
     ) {
+    }
+}
+
+impl Dispatch<wl_seat::WlSeat, ()> for AppData {
+    fn event(
+        state: &mut Self,
+        seat: &wl_seat::WlSeat,
+        event: <wl_seat::WlSeat as Proxy>::Event,
+        data: &(),
+        conn: &wayland_client::Connection,
+        qhandle: &wayland_client::QueueHandle<Self>,
+    ) {
+    }
+}
+
+impl Dispatch<wl_pointer::WlPointer, ()> for AppData {
+    fn event(
+        state: &mut Self,
+        pointer: &wl_pointer::WlPointer,
+        event: <wl_pointer::WlPointer as Proxy>::Event,
+        data: &(),
+        conn: &wayland_client::Connection,
+        qhandle: &wayland_client::QueueHandle<Self>,
+    ) {
+        // println!("{event:?}");
+        match event {
+            wl_pointer::Event::Motion {
+                time,
+                surface_x,
+                surface_y,
+            } => input::pointer::handle_motion(state, surface_x, surface_y, time),
+
+            wl_pointer::Event::Button {
+                serial,
+                time,
+                button,
+                state: button_state,
+            } => input::pointer::handle_button(state, button, button_state, time),
+
+            _ => {}
+        }
     }
 }
 
@@ -180,22 +278,26 @@ fn main() {
         compositor: None,
         layer_shell: None,
         shm: None,
-        flags: Flags::default(),
+        seat: None,
+        app: WayGraph::default(),
     };
+
+    state.app.desktop.width = 1920;
+    state.app.desktop.height = 1000;
 
     type FlagCallback = Box<dyn Fn(&mut AppData)>;
     let mut flag_callbacks: HashMap<&str, FlagCallback> = HashMap::new();
     flag_callbacks.insert(
         "--draw-shadow",
         Box::new(|state: &mut AppData| {
-            state.flags.drawshadow = true;
+            state.app.flags.drawshadow = true;
         }),
     );
 
     flag_callbacks.insert(
         "--set-exclusive-zone",
         Box::new(|state: &mut AppData| {
-            state.flags.setexclusivezone = true;
+            state.app.flags.setexclusivezone = true;
         }),
     );
 
@@ -218,33 +320,34 @@ fn main() {
     let compositor = state.compositor.as_ref().unwrap();
     let layer_shell = state.layer_shell.as_ref().unwrap();
     let shm = state.shm.as_ref().unwrap();
+    let seat = state.seat.as_ref().unwrap();
+    let pointer = seat.get_pointer(&qh, ());
 
     let surface = compositor.create_surface(&qh, ());
 
     let layer_surface = layer_shell.get_layer_surface(
         &surface,
         None,
-        zwlr_layer_shell_v1::Layer::Background,
+        zwlr_layer_shell_v1::Layer::Bottom,
         "waygraph".into(),
         &qh,
         (),
     );
 
-    layer_surface.set_size(1920, 1080);
+    layer_surface.set_size(state.app.desktop.width, state.app.desktop.height);
     layer_surface
         .set_anchor(zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Left);
 
-    if state.flags.setexclusivezone {
+    if state.app.flags.setexclusivezone {
         layer_surface.set_exclusive_zone(-1);
     }
 
     surface.commit();
-    let width = 1920;
-    let height = 1080;
 
-    while !state.flags.configured {
+    while !state.app.flags.configured {
         event_queue.blocking_dispatch(&mut state).unwrap();
     }
+
     let egl = egl::Instance::new(egl::Static);
     let egl_display = unsafe { egl.get_display(display.id().as_ptr() as *mut c_void) }.unwrap();
     egl.initialize(egl_display).unwrap();
@@ -256,6 +359,7 @@ fn main() {
         egl::GREEN_SIZE, 8,
         egl::BLUE_SIZE, 8,
         egl::ALPHA_SIZE, 8,
+        egl::RENDERABLE_TYPE, egl::OPENGL_ES3_BIT,
         egl::NONE,
     ];
 
@@ -275,7 +379,12 @@ fn main() {
         .create_context(egl_display, config, None, &context_attributes)
         .unwrap();
 
-    let egl_window = wayland_egl::WlEglSurface::new(surface.id(), width, height).unwrap();
+    let egl_window = wayland_egl::WlEglSurface::new(
+        surface.id(),
+        state.app.desktop.width as i32,
+        state.app.desktop.height as i32,
+    )
+    .unwrap();
 
     let egl_surface = unsafe {
         egl.create_window_surface(egl_display, config, egl_window.ptr() as *mut _, None)
@@ -295,26 +404,50 @@ fn main() {
     });
 
     let desktop_entries = desktop::get_desktop_entries();
+    state.app.desktop.items = desktop_entries;
     let desktop_entry_size = 196;
 
-    let row_count = height / desktop_entry_size;
+    let row_count = state.app.desktop.height / desktop_entry_size;
 
-    let font_renderer = FontRenderer::new("NotoSans-Regular".to_string(), 148);
+    let font_name = "NotoSans-Regular";
+
+    let font_renderer = FontRenderer::new(font_name, 80);
+
+    let layoutgrid = layout::simplegridlayout::SimpleGridLayout::new(
+        state.app.desktop.width as i32,
+        state.app.desktop.height as i32,
+        font_name,
+        18,
+        180,
+    );
+    state.app.desktop.layout = Box::new(layoutgrid);
 
     loop {
+        event_queue.dispatch_pending(&mut state).unwrap();
         unsafe {
-            gl::Viewport(0, 0, width, height);
+            gl::Viewport(
+                0,
+                0,
+                state.app.desktop.width as i32,
+                state.app.desktop.height as i32,
+            );
 
-            if state.flags.drawshadow {
+            if state.app.flags.drawshadow {
                 gl::ClearColor(0.0, 0.0, 0.0, 0.7);
             } else {
                 gl::ClearColor(0.0, 0.0, 0.0, 0.0);
             }
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
-            font_renderer.render_text("Lorem Ipsum".to_string(), 300.0, 200.0);
-            font_renderer.render_text("Dolor Sit Amet!".to_string(), 500.0, 600.0);
-            font_renderer.render_text("Consecutor Adispicing".to_string(), 200.0, 900.0);
+            font_renderer.render_text(&state, "Lorem Ipsum", 800.0, 200.0);
+            font_renderer.render_text(&state, "Dolor Sit Amet!", 900.0, 600.0);
+            font_renderer.render_text(&state, "Consecutor Adispicing", 900.0, 900.0);
+            state
+                .app
+                .desktop
+                .layout
+                .arrange_items(&mut state.app.desktop.items);
+            state.app.desktop.layout.render(&state);
         }
         egl.swap_buffers(egl_display, egl_surface).unwrap();
     }
