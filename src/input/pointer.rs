@@ -31,16 +31,13 @@ pub fn handle_double_click(state: &mut AppData, button: u32, click_time: u32) {
         last_x as f32,
         last_y as f32,
     ) {
-        let item = state.app.desktop.items.get(item_index).unwrap();
-        let exec = item.data.exec.as_ref().unwrap();
-        let (command, args) = exec.split_once(" ").unwrap_or((exec, ""));
+        let desktop_item = state.app.desktop.items.get(item_index).unwrap();
+        let exec = &desktop_item.data.exec.as_ref().unwrap().replace("%f", "");
         println!("Launching {}...", exec);
 
         let mut command_builder = Command::new("sh");
 
-        if !args.is_empty() {
-            command_builder.args(["-c", exec]);
-        }
+        command_builder.args(["-c", exec]);
 
         println!("command: {:?}", command_builder);
         let status = command_builder.spawn().unwrap();

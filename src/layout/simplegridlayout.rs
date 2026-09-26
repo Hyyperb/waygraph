@@ -46,7 +46,7 @@ impl SimpleGridLayout {
 
 impl Layout for SimpleGridLayout {
     fn arrange_items(&self, desktop_items: &mut Vec<DesktopItem>) {
-        let row_count = self.height / self.desktop_item_size;
+        let row_count = (self.height / self.desktop_item_size).floor();
 
         for (i, desktop_item) in desktop_items.iter_mut().enumerate() {
             let (x, y) =
