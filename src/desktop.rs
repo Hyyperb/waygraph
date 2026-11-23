@@ -13,16 +13,6 @@ const ICON_PADDING_RIGHT: f32 = 40.0;
 const ICON_PADDING_BOTTOM: f32 = 35.0;
 
 #[derive(Debug, Default)]
-pub struct DesktopItemOld {
-    pub label: String,
-    pub icon_path: String,
-    pub exec: Option<String>,
-    pub size: i32,
-    pub x: i32,
-    pub y: i32,
-}
-
-#[derive(Debug, Default)]
 pub struct DesktopItem {
     pub data: DesktopEntry,
     pub size: f32,
@@ -67,38 +57,6 @@ pub fn get_desktop_entries() -> Vec<DesktopItem> {
             };
             desktop_items.push(item);
         }
-        //     let f = std::fs::File::open(file_path).unwrap();
-        //     let buf = BufReader::new(f);
-        //
-        //     let mut icon_path: Option<String> = None;
-        //     let mut exec: Option<String> = None;
-        //
-        //     for line in buf.lines() {
-        //         let line = line.unwrap();
-        //         if line.starts_with("Icon=") && icon_path.is_none() {
-        //             icon_path = Some(line.strip_prefix("Icon=").unwrap().to_string());
-        //         } else if line.starts_with("Exec=") && exec.is_none() {
-        //             let mut exec_match = line.strip_prefix("Exec=").unwrap().to_string();
-        //             if exec_match.starts_with("\"") && exec_match.ends_with("\"") {
-        //                 exec_match = exec_match.strip_prefix("\"").unwrap().to_string();
-        //             }
-        //             exec = Some(exec_match);
-        //         }
-        //     }
-        //
-        //     if icon_path.is_none() {
-        //         continue;
-        //     }
-        //
-        //     let item = DesktopItem {
-        //         label: file.file_name().into_string().unwrap(),
-        //         icon_path: icon_path.unwrap(),
-        //         exec,
-        //         size,
-        //         x: 0,
-        //         y: 0,
-        //     };
-        //    desktop_items.push(item);
     }
     desktop_items
 }
