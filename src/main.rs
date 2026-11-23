@@ -16,7 +16,9 @@ use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_l
 
 use fonts::FontRenderer;
 
-use crate::{desktop::DesktopItem, layout::DummyLayout};
+use crate::{
+    desktop::DesktopItem, layout::DummyLayout, renderer::Rendering, ui::text_label::TextLabel,
+};
 
 extern crate khronos_egl as egl;
 
@@ -74,11 +76,17 @@ impl Default for DesktopLayout {
 }
 
 #[derive(Default)]
+struct FontData {
+    renderer: Option<FontRenderer>,
+}
+
+#[derive(Default)]
 struct WayGraph {
     flags: Flags,
     config: WaygraphConfig,
     pointer: PointerData,
     desktop: DesktopLayout,
+    font: FontData,
 }
 
 struct AppData {
@@ -117,7 +125,9 @@ impl Dispatch<wl_registry::WlRegistry, ()> for AppData {
                 "wl_seat" => {
                     state.seat = Some(registry.bind(name, 1, qhandle, ()));
                 }
-                _ => {}
+                other => {
+                    println!("Dispatch wl_registry: skipping {other}");
+                }
             }
         }
     }
@@ -410,8 +420,9 @@ fn main() {
     let row_count = state.app.desktop.height / desktop_entry_size;
 
     let font_name = "NotoSans-Regular";
-
     let font_renderer = FontRenderer::new(font_name, 80);
+
+    state.app.font.renderer = Some(font_renderer);
 
     let layoutgrid = layout::simplegridlayout::SimpleGridLayout::new(
         state.app.desktop.width as f32,
@@ -421,6 +432,11 @@ fn main() {
         180.0,
     );
     state.app.desktop.layout = Box::new(layoutgrid);
+    let hello = TextLabel {
+        text: "Hello",
+        x: 0.0,
+        y: 0.0,
+    };
 
     loop {
         event_queue.dispatch_pending(&mut state).unwrap();
@@ -432,6 +448,8 @@ fn main() {
                 state.app.desktop.height as i32,
             );
 
+            hello.render(&state);
+
             if state.app.flags.drawshadow {
                 gl::ClearColor(0.0, 0.0, 0.0, 0.7);
             } else {
@@ -439,9 +457,6 @@ fn main() {
             }
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
-            font_renderer.render_text(&state, "Lorem Ipsum", 800.0, 200.0);
-            font_renderer.render_text(&state, "Dolor Sit Amet!", 900.0, 600.0);
-            font_renderer.render_text(&state, "Consecutor Adispicing", 900.0, 900.0);
             state
                 .app
                 .desktop

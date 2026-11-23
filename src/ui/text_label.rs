@@ -1,14 +1,19 @@
-use crate::{AppData, fonts::FontRenderer, renderer::Rendering};
+use crate::{AppData, renderer::Rendering};
 
 pub struct TextLabel {
-    renderer: FontRenderer,
-    text: &'static str,
-    x: f32,
-    y: f32,
+    pub text: &'static str,
+    pub x: f32,
+    pub y: f32,
 }
 
 impl Rendering for TextLabel {
     fn render(&self, state: &AppData) {
-        self.renderer.render_text(state, self.text, self.x, self.y);
+        state
+            .app
+            .font
+            .renderer
+            .as_ref()
+            .unwrap()
+            .render_text(state, self.text, self.x, self.y);
     }
 }
