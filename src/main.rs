@@ -455,7 +455,7 @@ fn main() {
         .unwrap()
         .texture;
 
-    let tux_image = desktop::upload_icon_texture("tux.png");
+    let tux_image = desktop::upload_icon_texture("assets/tux.png");
 
     loop {
         event_queue.dispatch_pending(&mut state).unwrap();

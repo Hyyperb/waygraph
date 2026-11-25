@@ -157,6 +157,7 @@ impl FontRenderer {
             unsafe {
                 gl::ActiveTexture(gl::TEXTURE0);
                 gl::BindTexture(gl::TEXTURE_2D, g.texture);
+                gl::BindVertexArray(self.vao);
                 gl::UseProgram(self.shader_program);
 
                 gl::Uniform2f(

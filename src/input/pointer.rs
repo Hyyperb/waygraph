@@ -38,22 +38,29 @@ pub fn handle_double_click(state: &mut AppData, button: u32, click_time: u32) {
             .exec
             .as_ref()
             .unwrap()
-            .split_whitespace()
-            .next()
-            .unwrap();
+            .replace(r"\\\\", r"\")
+            .replace("%F", "")
+            .replace("%f", "")
+            .replace("%U", "")
+            .replace("%u", "");
 
-        println!("Launching {}...", exec);
+        let command = if terminal_needed { "kitty" } else { "setsid" };
+        let mut args: Vec<&str> = vec![];
+        if terminal_needed {
+            args.push("-e");
+        } else {
+            args.push("-f");
+            args.push("sh");
+            args.push("-c");
+        }
+        args.push(exec.trim());
 
-        _ = Command::new(if terminal_needed { "kitty" } else { "sh" })
-            .args([if terminal_needed { "-e" } else { "-c" }, exec])
+        let status = Command::new(command)
+            .args(args)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
             .unwrap();
-
-        // println!("command: {:?}", command_builder);
     };
-
-    println!()
 }

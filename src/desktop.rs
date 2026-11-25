@@ -1,5 +1,3 @@
-// use std::io::{BufRead, BufReader};
-
 use std::path::PathBuf;
 
 use glam::Vec2;
@@ -36,19 +34,6 @@ impl Rendering for DesktopItem {
             self.size - PADDING * 2.0,
             self.size - PADDING * 2.0,
         );
-        // unsafe {
-        //     gl::Enable(gl::SCISSOR_TEST);
-        //     gl::Scissor(
-        //         (self.pos.x + ICON_PADDING_LEFT) as i32,
-        //         (state.app.desktop.height as f32 - 180.0 - self.pos.y + ICON_PADDING_BOTTOM) as i32,
-        //         (self.size - ICON_PADDING_RIGHT - ICON_PADDING_LEFT) as i32,
-        //         (self.size - ICON_PADDING_TOP - ICON_PADDING_BOTTOM) as i32,
-        //     );
-        //
-        //     gl::ClearColor(1.0, 1.0, 1.0, 1.0);
-        //     gl::Clear(gl::COLOR_BUFFER_BIT);
-        //     gl::Disable(gl::SCISSOR_TEST);
-        // }
     }
 }
 
