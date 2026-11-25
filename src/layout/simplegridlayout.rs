@@ -68,7 +68,11 @@ impl Layout for SimpleGridLayout {
 
         let i = ix * row_count + iy;
 
-        Some(i as usize)
+        if i < desktop_items.len() as i32 {
+            Some(i as usize)
+        } else {
+            None
+        }
     }
 }
 
