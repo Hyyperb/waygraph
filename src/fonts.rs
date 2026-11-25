@@ -7,7 +7,7 @@ use freetype::face::LoadFlag;
 use crate::AppData;
 
 pub struct GlyphRenderCache {
-    texture: u32,
+    pub texture: u32,
     height: f32,
     width: f32,
     bearing_x: f32,
@@ -21,7 +21,7 @@ pub struct FontRenderer {
     font_path: String,
     library: freetype::Library,
     face: freetype::Face,
-    glyphs: HashMap<char, GlyphRenderCache>,
+    pub glyphs: HashMap<char, GlyphRenderCache>,
     shader_program: u32,
     vao: u32,
 }
@@ -190,7 +190,7 @@ impl FontRenderer {
     }
 }
 
-pub fn create_shader_program() -> u32 {
+fn create_shader_program() -> u32 {
     unsafe {
         let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
 

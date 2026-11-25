@@ -125,9 +125,7 @@ impl Dispatch<wl_registry::WlRegistry, ()> for AppData {
                 "wl_seat" => {
                     state.seat = Some(registry.bind(name, 1, qhandle, ()));
                 }
-                other => {
-                    println!("Dispatch wl_registry: skipping {other}");
-                }
+                _ => {}
             }
         }
     }
@@ -438,6 +436,19 @@ fn main() {
         y: 0.0,
     };
 
+    let quad_renderer = renderer::quad::QuadRenderer::new();
+    let char = 'E';
+    let big_e_texture = state
+        .app
+        .font
+        .renderer
+        .as_ref()
+        .unwrap()
+        .glyphs
+        .get(&char)
+        .unwrap()
+        .texture;
+
     loop {
         event_queue.dispatch_pending(&mut state).unwrap();
         unsafe {
@@ -456,6 +467,8 @@ fn main() {
                 gl::ClearColor(0.0, 0.0, 0.0, 0.0);
             }
             gl::Clear(gl::COLOR_BUFFER_BIT);
+
+            quad_renderer.render(big_e_texture, 700.0, 400.0, 80.0, 60.0);
 
             state
                 .app
