@@ -81,7 +81,7 @@ impl Rendering for SimpleGridLayout {
         for desktop_item in state.app.desktop.items.iter() {
             desktop_item.render(state);
             let text_x = desktop_item.pos.x + self.desktop_item_size / 2.0;
-            let text_y = desktop_item.pos.y + desktop_item.size - 10.0;
+            let text_y = desktop_item.pos.y + desktop_item.size;
 
             self.font_renderer.render_text(
                 state,

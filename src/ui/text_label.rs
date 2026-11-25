@@ -11,7 +11,7 @@ impl Rendering for TextLabel {
         state
             .app
             .font
-            .renderer
+            .font_renderer
             .as_ref()
             .unwrap()
             .render_text(state, self.text, self.x, self.y);

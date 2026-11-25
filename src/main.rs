@@ -17,7 +17,10 @@ use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_l
 use fonts::FontRenderer;
 
 use crate::{
-    desktop::DesktopItem, layout::DummyLayout, renderer::Rendering, ui::text_label::TextLabel,
+    desktop::DesktopItem,
+    layout::DummyLayout,
+    renderer::{Rendering, quad::QuadRenderer},
+    ui::text_label::TextLabel,
 };
 
 extern crate khronos_egl as egl;
@@ -60,24 +63,26 @@ struct DesktopLayout {
     layout: Box<dyn layout::Layout>,
     width: u32,
     height: u32,
+    icon_renderer: Option<QuadRenderer>,
 }
 
 impl Default for DesktopLayout {
     fn default() -> Self {
-        let items = desktop::get_desktop_entries();
+        let items = vec![];
         let layout = Box::new(DummyLayout {});
         Self {
             items,
             layout,
             width: 1920,
             height: 1080,
+            icon_renderer: None,
         }
     }
 }
 
 #[derive(Default)]
 struct FontData {
-    renderer: Option<FontRenderer>,
+    font_renderer: Option<FontRenderer>,
 }
 
 #[derive(Default)]
@@ -420,7 +425,8 @@ fn main() {
     let font_name = "NotoSans-Regular";
     let font_renderer = FontRenderer::new(font_name, 80);
 
-    state.app.font.renderer = Some(font_renderer);
+    state.app.font.font_renderer = Some(font_renderer);
+    state.app.desktop.icon_renderer = Some(renderer::quad::QuadRenderer::new());
 
     let layoutgrid = layout::simplegridlayout::SimpleGridLayout::new(
         state.app.desktop.width as f32,
@@ -441,13 +447,15 @@ fn main() {
     let big_e_texture = state
         .app
         .font
-        .renderer
+        .font_renderer
         .as_ref()
         .unwrap()
         .glyphs
         .get(&char)
         .unwrap()
         .texture;
+
+    let tux_image = desktop::upload_icon_texture("tux.png");
 
     loop {
         event_queue.dispatch_pending(&mut state).unwrap();
@@ -468,7 +476,8 @@ fn main() {
             }
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
-            quad_renderer.render(big_e_texture, 700.0, 400.0, 80.0, 60.0);
+            quad_renderer.render(&state, big_e_texture, 900.0, 400.0, 80.0, 60.0);
+            quad_renderer.render(&state, tux_image, 1250.0, 400.0, 610.0, 430.0);
 
             state
                 .app

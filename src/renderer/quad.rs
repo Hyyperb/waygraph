@@ -1,5 +1,7 @@
 use std::ptr::null;
 
+use crate::AppData;
+
 pub struct QuadRenderer {
     shader_program: u32,
     vao: u32,
@@ -54,7 +56,7 @@ impl QuadRenderer {
         }
     }
 
-    pub fn render(&self, tex: u32, x: f32, y: f32, w: f32, h: f32) {
+    pub fn render(&self, state: &AppData, tex: u32, x: f32, y: f32, w: f32, h: f32) {
         unsafe {
             gl::ActiveTexture(gl::TEXTURE0);
             gl::BindTexture(gl::TEXTURE_2D, tex);
@@ -77,8 +79,8 @@ impl QuadRenderer {
             );
             gl::Uniform2f(
                 gl::GetUniformLocation(self.shader_program, c"viewportSize".as_ptr()),
-                1920.0,
-                1080.0,
+                state.app.desktop.width as f32,
+                state.app.desktop.height as f32,
             );
 
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
