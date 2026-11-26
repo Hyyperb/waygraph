@@ -16,12 +16,7 @@ use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_l
 
 use fonts::FontRenderer;
 
-use crate::{
-    desktop::DesktopItem,
-    layout::DummyLayout,
-    renderer::{Rendering, quad::QuadRenderer},
-    ui::text_label::TextLabel,
-};
+use crate::{desktop::DesktopItem, layout::DummyLayout, renderer::quad::QuadRenderer};
 
 extern crate khronos_egl as egl;
 
@@ -31,6 +26,8 @@ mod input;
 mod layout;
 mod renderer;
 mod ui;
+
+const FONT: &str = "NotoSans-Regular";
 
 #[derive(Default)]
 struct Flags {
@@ -416,46 +413,22 @@ fn main() {
         egl.get_proc_address(name).unwrap() as *const c_void
     });
 
+    let desktop_entry_size = 160;
     let desktop_entries = desktop::get_desktop_entries();
     state.app.desktop.items = desktop_entries;
-    let desktop_entry_size = 196;
 
     let row_count = state.app.desktop.height / desktop_entry_size;
-
-    let font_name = "NotoSans-Regular";
-    let font_renderer = FontRenderer::new(font_name, 80);
-
-    state.app.font.font_renderer = Some(font_renderer);
-    state.app.desktop.icon_renderer = Some(renderer::quad::QuadRenderer::new());
 
     let layoutgrid = layout::simplegridlayout::SimpleGridLayout::new(
         state.app.desktop.width as f32,
         state.app.desktop.height as f32,
-        font_name,
+        FONT,
         18,
-        180.0,
+        desktop_entry_size as f32,
     );
+
+    state.app.desktop.icon_renderer = Some(renderer::quad::QuadRenderer::new());
     state.app.desktop.layout = Box::new(layoutgrid);
-    let hello = TextLabel {
-        text: "Hello",
-        x: 0.0,
-        y: 0.0,
-    };
-
-    let quad_renderer = renderer::quad::QuadRenderer::new();
-    let char = 'E';
-    let big_e_texture = state
-        .app
-        .font
-        .font_renderer
-        .as_ref()
-        .unwrap()
-        .glyphs
-        .get(&char)
-        .unwrap()
-        .texture;
-
-    let tux_image = desktop::upload_icon_texture("assets/tux.png");
 
     loop {
         event_queue.dispatch_pending(&mut state).unwrap();
@@ -467,17 +440,12 @@ fn main() {
                 state.app.desktop.height as i32,
             );
 
-            hello.render(&state);
-
             if state.app.flags.drawshadow {
                 gl::ClearColor(0.0, 0.0, 0.0, 0.7);
             } else {
                 gl::ClearColor(0.0, 0.0, 0.0, 0.0);
             }
             gl::Clear(gl::COLOR_BUFFER_BIT);
-
-            quad_renderer.render(&state, big_e_texture, 900.0, 400.0, 80.0, 60.0);
-            quad_renderer.render(&state, tux_image, 1250.0, 400.0, 610.0, 430.0);
 
             state
                 .app
