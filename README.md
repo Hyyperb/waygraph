@@ -1,8 +1,8 @@
 # Waygraph
 
-A wayland wlr-layer-shell based desktop icon layer
+A wayland wlr-layer-shell based desktop icon layer.
 
-![screenshot](.assets/desktop.png)
+![screenshot](assets/desktop.png)
 
 ## Progress
 
@@ -13,6 +13,14 @@ This project is currently in development and is expected to have innovative new 
 - Icon rendering
 - Application launch
 
+For more check: [TODO.md](TODO.md)
+
 ## How to run
 
 Just use `cargo run --release`
+
+## Notes
+
+No AI policy: Every single line of code is hand written
+
+GPL v3 Licensed. Read [LICENSE.md](LICENSE.md)
