@@ -14,8 +14,6 @@ const ICON_PADDING_BOTTOM: f32 = 35.0;
 
 const PADDING: f32 = 40.0;
 
-const UNKNOWN_ICON_PATH: &str = "assets/application-x-generic.png";
-
 #[derive(Debug, Default)]
 pub struct DesktopItem {
     pub data: DesktopEntry,
@@ -74,7 +72,9 @@ pub fn get_desktop_entries() -> Vec<DesktopItem> {
 
 pub fn upload_icon_texture(path: &str) -> u32 {
     let mut texture: u32 = 0;
-    let img = image::open(path).unwrap_or_else(|_| image::open(UNKNOWN_ICON_PATH).unwrap());
+    let img = image::open(path).unwrap_or_else(|_| {
+        image::load_from_memory(include_bytes!("../assets/application-x-generic.png")).unwrap()
+    });
 
     unsafe {
         gl::GenTextures(1, &mut texture);

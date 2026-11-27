@@ -21,6 +21,8 @@ Just use `cargo run --release`
 
 ## Notes
 
+Credits to LibAdwaita for assets/application-x-generic.png
+
 No AI policy: Every single line of code is hand written
 
 GPL v3 Licensed. Read [LICENSE.md](LICENSE.md)
